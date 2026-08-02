@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NEET Answer Checker — Offline OMR &amp; Analysis Tool</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============ TOP BAR ============ -->
+<header class="topbar">
+  <div class="topbar__brand">
+    <span class="topbar__mark">●</span>
+    <div class="topbar__title">
+      <strong>NEET Answer Checker</strong>
+      <span>Offline OMR &amp; Result Analysis</span>
+    </div>
+  </div>
+
+  <div class="topbar__meta">
+    <div class="topbar__attempted"><strong id="attemptedCount">0</strong>/180 attempted</div>
+    <div class="topbar__progress"><div class="topbar__progress-fill" id="progressFill"></div></div>
+    <div class="topbar__timer" id="timerDisplay">03:00:00</div>
+  </div>
+
+  <nav class="topbar__steps" id="stepNav">
+    <span class="step is-active" data-step="home">Home</span>
+    <span class="step" data-step="answering">Test</span>
+    <span class="step" data-step="key">Answer Key</span>
+    <span class="step" data-step="result">Result</span>
+  </nav>
+
+  <button id="themeToggle" class="btn btn--ghost btn--icon" title="Toggle light / dark mode" aria-label="Toggle theme">◐</button>
+</header>
+
+<main class="app">
+
+  <!-- ============ SCREEN 0 : HOME / START TEST ============ -->
+  <section id="screen-home" class="screen is-active">
+    <div class="panel start-card">
+      <span class="start-card__eyebrow">Offline Mock Test</span>
+      <h1 class="start-card__title">NEET CBT Practice</h1>
+      <div class="start-card__stats">
+        <div class="start-card__stat"><span class="start-card__stat-value">180</span><span class="start-card__stat-label">Questions</span></div>
+        <div class="start-card__stat"><span class="start-card__stat-value">180</span><span class="start-card__stat-label">Minutes</span></div>
+        <div class="start-card__stat"><span class="start-card__stat-value" id="homeMaxMarks">720</span><span class="start-card__stat-label">Maximum Marks</span></div>
+      </div>
+      <p class="hint">Mark your answers here while you solve the paper. The 180 minute timer starts the moment you click below, and submits automatically when it runs out.</p>
+      <button id="startTestBtn" class="btn btn--primary btn--large">Start Test</button>
+    </div>
+  </section>
+
+  <!-- ============ SCREEN 1 : QUESTION / OMR SCREEN ============ -->
+  <section id="screen-answering" class="screen">
+
+    
+    <p class="hint">Fill the bubble sheet exactly as you marked it on paper. Tap an option again to unmark it. Leave a row blank to skip.</p>
+      
+    <div id="questionSections"></div>
+    
+    <div class="panel panel--sticky">
+      <div class="panel__actions">
+        <button id="clearAllBtn" class="btn btn--ghost">Clear All</button>
+        <button id="submitAnswersBtn" class="btn btn--primary">Submit Answers →</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SCREEN 2 : ANSWER KEY UPLOAD ============ -->
+  <section id="screen-key" class="screen">
+
+    <div class="panel">
+      <h2 class="panel__title">Upload Official Answer Key (PDF)</h2>
+      <p class="hint">The key is parsed automatically. Any format like <code>1. (4)</code>, <code>1 - 4</code>, <code>1) 4</code>, <code>Q1 = 4</code> or <code>1 4</code> is supported.</p>
+
+      <label for="pdfInput" class="dropzone" id="dropzone">
+        <span class="dropzone__icon">⇪</span>
+        <span class="dropzone__text">Click to choose the answer key PDF, or drag it here</span>
+        <span class="dropzone__file" id="fileNameLabel"></span>
+      </label>
+      <input type="file" id="pdfInput" accept="application/pdf" hidden>
+
+      <div id="extractStatus" class="status" hidden></div>
+    </div>
+
+    <div id="rawTextPanel" class="panel" hidden>
+      <h2 class="panel__title">Extracted Text (for reference)</h2>
+      <p class="hint">If some answers were not detected, they are highlighted below. Fill only the missing ones — everything else was read automatically.</p>
+      <textarea id="rawTextArea" class="rawtext" readonly></textarea>
+    </div>
+
+    <div id="keyReviewPanel" class="panel" hidden>
+      <h2 class="panel__title">Review Answer Key</h2>
+      <p class="hint">Cells outlined in amber were not detected — please mark them. You may correct any other cell too.</p>
+      <div id="keyGrid" class="omr-grid omr-grid--key" aria-label="Answer key grid"></div>
+    </div>
+
+    <div class="panel">
+      <h2 class="panel__title">Marking Scheme</h2>
+      <div class="marking-scheme">
+        <label>Correct
+          <input type="number" id="markCorrect" value="4" step="0.25">
+        </label>
+        <label>Wrong
+          <input type="number" id="markWrong" value="-1" step="0.25">
+        </label>
+        <label>Unattempted
+          <input type="number" id="markUnattempted" value="0" step="0.25">
+        </label>
+      </div>
+      <div class="panel__actions">
+        <button id="backToAnswersBtn" class="btn btn--ghost">← Back</button>
+        <button id="checkAnswersBtn" class="btn btn--primary">Check Answers</button>
+      </div>
+    </div>
+
+  </section>
+
+  <!-- ============ SCREEN 3 : RESULT ============ -->
+  <section id="screen-result" class="screen">
+
+    <div class="panel panel--sticky summary-card" id="summaryCard">
+      <div class="summary-grid">
+        <div class="summary-item"><span class="summary-label">Total</span><span class="summary-value" id="sumTotal">0</span></div>
+        <div class="summary-item summary-item--correct"><span class="summary-label">Correct</span><span class="summary-value" id="sumCorrect">0</span></div>
+        <div class="summary-item summary-item--wrong"><span class="summary-label">Wrong</span><span class="summary-value" id="sumWrong">0</span></div>
+        <div class="summary-item summary-item--skip"><span class="summary-label">Skipped</span><span class="summary-value" id="sumSkipped">0</span></div>
+        <div class="summary-item summary-item--marks"><span class="summary-label">Marks</span><span class="summary-value" id="sumMarks">0 / 720</span></div>
+        <div class="summary-item"><span class="summary-label">Accuracy</span><span class="summary-value" id="sumAccuracy">0%</span></div>
+        <div class="summary-item"><span class="summary-label">Maximum Marks</span><span class="summary-value" id="sumMaxMarks">720</span></div>
+      </div>
+      <div class="panel__actions">
+        <button id="exportPdfBtn" class="btn btn--primary">Download Result PDF</button>
+        <button id="restartBtn" class="btn btn--ghost">Start New Test</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2 class="panel__title">Subject-wise Analysis</h2>
+      <div id="subjectGrid" class="subject-grid"></div>
+    </div>
+
+    <div class="panel">
+      <div class="panel__title-row">
+        <h2 class="panel__title">Question-wise Analysis</h2>
+        <div class="filters" id="filterBar">
+          <button class="filter-btn is-active" data-filter="all">All</button>
+          <button class="filter-btn" data-filter="correct">Correct</button>
+          <button class="filter-btn" data-filter="wrong">Wrong</button>
+          <button class="filter-btn" data-filter="skipped">Skipped</button>
+        </div>
+      </div>
+      <div class="table-wrap">
+        <table class="qtable">
+          <thead>
+            <tr><th>Question</th><th>Your Answer</th><th>Correct Answer</th><th>Status</th></tr>
+          </thead>
+          <tbody id="qtableBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </section>
+
+</main>
+
+<!-- ============ SUBMIT CONFIRMATION MODAL ============ -->
+<div id="confirmModal" class="modal-overlay">
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle">
+    <h2 id="confirmModalTitle" class="modal-box__title">Submit test?</h2>
+    <div class="modal-box__stats">
+      <div><span class="summary-label">Attempted</span><strong id="confirmAttempted">0</strong></div>
+      <div><span class="summary-label">Skipped</span><strong id="confirmSkipped">0</strong></div>
+    </div>
+    <p class="hint">Are you sure you want to submit?</p>
+    <div class="modal-box__actions">
+      <button id="confirmCancelBtn" class="btn btn--ghost">Cancel</button>
+      <button id="confirmSubmitBtn" class="btn btn--primary">Submit</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" hidden></div>
+
+<!-- PDF.js — used ONLY to read text out of the uploaded answer-key PDF -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
