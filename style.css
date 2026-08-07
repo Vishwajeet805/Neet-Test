@@ -17,6 +17,10 @@
   --wrong-bg: #2a1414;
   --skip: #7C879C;
   --skip-bg: #1a1e28;
+  --star-on: #F2CB4E;
+  --star-bg: #2a2410;
+  --review-on: #F87171;
+  --review-bg: #2a1414;
   --radius: 10px;
   --mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -37,6 +41,10 @@
   --wrong-bg: #FBEAEA;
   --skip: #7C879C;
   --skip-bg: #ECEAE1;
+  --star-on: #B8860B;
+  --star-bg: #FBF1D8;
+  --review-on: #D64545;
+  --review-bg: #FBEAEA;
 }
 
 *{ box-sizing: border-box; }
@@ -103,6 +111,62 @@ code{ font-family:var(--mono); background:var(--panel-2); padding:.1em .4em; bor
 }
 .topbar__timer.is-running{ color:var(--accent); border-color:var(--accent-dim); }
 .topbar__timer.is-critical{ color:var(--wrong); border-color:var(--wrong); }
+
+/* =============== TIMER FLIP (hover: time left ⇄ time spent) =============== */
+.timer-flip{
+  perspective:600px;
+  cursor:default;
+  outline:none;
+}
+.timer-flip__inner{
+  position:relative;
+  transition:transform .5s cubic-bezier(.4,.15,.2,1);
+  transform-style:preserve-3d;
+}
+.timer-flip:hover .timer-flip__inner,
+.timer-flip:focus-visible .timer-flip__inner{
+  transform:rotateX(180deg);
+}
+.timer-flip__face{
+  min-width:128px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  white-space:nowrap;
+  backface-visibility:hidden;
+}
+.timer-flip__face--front{ position:relative; }
+.timer-flip__face--back{
+  position:absolute;
+  inset:0;
+  transform:rotateX(180deg);
+  border-color:var(--accent-dim);
+  color:var(--text-dim);
+}
+.timer-flip__label{
+  font-family:var(--sans);
+  font-size:10px;
+  font-weight:700;
+  text-transform:uppercase;
+  letter-spacing:.06em;
+  color:var(--text-dim);
+}
+
+.topbar__timer-wrap{ display:flex; align-items:center; gap:8px; }
+.paused-badge{
+  font-family:var(--mono);
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:.07em;
+  color:var(--wrong);
+  background:var(--wrong-bg);
+  border:1px solid var(--wrong);
+  border-radius:12px;
+  padding:3px 9px;
+  white-space:nowrap;
+}
+#pauseBtn, #resumeBtn{ font-size:14px; }
 
 .topbar__steps{ display:flex; gap:6px; margin-left:16px; }
 .step{
@@ -288,6 +352,32 @@ code{ font-family:var(--mono); background:var(--panel-2); padding:.1em .4em; bor
 }
 .omr-row__opts{ display:flex; gap:6px; }
 
+.omr-row__markers{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  margin-left:auto;
+  padding-left:10px;
+  flex-shrink:0;
+}
+.marker-btn{
+  display:flex; align-items:center; justify-content:center;
+  width:28px; height:28px;
+  border-radius:6px;
+  border:1px solid transparent;
+  background:transparent;
+  color:var(--text-dim);
+  cursor:pointer;
+  transition:color .15s ease, background-color .15s ease, border-color .15s ease, transform .05s ease;
+}
+.marker-btn svg{ display:block; }
+.marker-btn:hover{ background:var(--panel-2); border-color:var(--border); color:var(--text); }
+.marker-btn:active{ transform:translateY(1px); }
+.marker-btn--star.is-on{ color:var(--star-on); }
+.marker-btn--star.is-on:hover{ background:var(--star-bg); border-color:transparent; }
+.marker-btn--review.is-on{ color:var(--review-on); }
+.marker-btn--review.is-on:hover{ background:var(--review-bg); border-color:transparent; }
+
 .bubble{ display:none; }
 .bubble__label{
   width:26px; height:26px;
@@ -376,11 +466,9 @@ code{ font-family:var(--mono); background:var(--panel-2); padding:.1em .4em; bor
 /* =============== SUMMARY CARD =============== */
 .summary-grid{
   display:grid;
-  grid-template-columns:repeat(7, 1fr);
+  grid-template-columns:repeat(auto-fit, minmax(110px, 1fr));
   gap:10px;
 }
-@media (max-width: 1000px){ .summary-grid{ grid-template-columns:repeat(4, 1fr); } }
-@media (max-width: 560px){ .summary-grid{ grid-template-columns:repeat(2, 1fr); } }
 
 .summary-item{
   background:var(--panel-2);
@@ -396,6 +484,8 @@ code{ font-family:var(--mono); background:var(--panel-2); padding:.1em .4em; bor
 .summary-item--wrong .summary-value{ color:var(--wrong); }
 .summary-item--skip .summary-value{ color:var(--skip); }
 .summary-item--marks .summary-value{ color:var(--accent); }
+.summary-item--star .summary-value{ color:var(--star-on); }
+.summary-item--review .summary-value{ color:var(--review-on); }
 
 /* =============== SUBJECT GRID =============== */
 .subject-grid{
@@ -454,6 +544,7 @@ code{ font-family:var(--mono); background:var(--panel-2); padding:.1em .4em; bor
 .qtable tr.row--wrong{ background:var(--wrong-bg); }
 .qtable tr.row--correct{ background:var(--correct-bg); }
 .qtable tr.row--skipped{ background:var(--skip-bg); }
+.qtable td.qtable__marker{ text-align:center; font-family:var(--sans); }
 
 /* =============== TOAST =============== */
 .toast{
