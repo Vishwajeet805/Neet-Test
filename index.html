@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -21,7 +22,20 @@
   <div class="topbar__meta">
     <div class="topbar__attempted"><strong id="attemptedCount">0</strong>/180 attempted</div>
     <div class="topbar__progress"><div class="topbar__progress-fill" id="progressFill"></div></div>
-    <div class="topbar__timer" id="timerDisplay">03:00:00</div>
+    <div class="topbar__timer-wrap">
+      <div class="timer-flip" id="timerFlip" tabindex="0" aria-label="Time left. Hover or focus to see time spent.">
+        <div class="timer-flip__inner">
+          <div class="topbar__timer timer-flip__face timer-flip__face--front" id="timerDisplay">03:00:00</div>
+          <div class="topbar__timer timer-flip__face timer-flip__face--back" id="timerDisplaySpent">
+            <span class="timer-flip__label">Spent</span>
+            <span id="timerDisplaySpentValue">00:00:00</span>
+          </div>
+        </div>
+      </div>
+      <span class="paused-badge" id="pausedBadge" hidden>PAUSED</span>
+      <button id="pauseBtn" class="btn btn--ghost btn--icon" title="Pause test" aria-label="Pause test" hidden>⏸</button>
+      <button id="resumeBtn" class="btn btn--ghost btn--icon" title="Resume test" aria-label="Resume test" hidden>▶</button>
+    </div>
   </div>
 
   <nav class="topbar__steps" id="stepNav">
@@ -129,6 +143,8 @@
         <div class="summary-item summary-item--marks"><span class="summary-label">Marks</span><span class="summary-value" id="sumMarks">0 / 720</span></div>
         <div class="summary-item"><span class="summary-label">Accuracy</span><span class="summary-value" id="sumAccuracy">0%</span></div>
         <div class="summary-item"><span class="summary-label">Maximum Marks</span><span class="summary-value" id="sumMaxMarks">720</span></div>
+        <div class="summary-item summary-item--star"><span class="summary-label">⭐ Starred Questions</span><span class="summary-value" id="sumStarred">0</span></div>
+        <div class="summary-item summary-item--review"><span class="summary-label">❗ Review Questions</span><span class="summary-value" id="sumReview">0</span></div>
       </div>
       <div class="panel__actions">
         <button id="exportPdfBtn" class="btn btn--primary">Download Result PDF</button>
@@ -149,12 +165,14 @@
           <button class="filter-btn" data-filter="correct">Correct</button>
           <button class="filter-btn" data-filter="wrong">Wrong</button>
           <button class="filter-btn" data-filter="skipped">Skipped</button>
+          <button class="filter-btn" data-filter="starred">⭐ Starred</button>
+          <button class="filter-btn" data-filter="review">❗ Review</button>
         </div>
       </div>
       <div class="table-wrap">
         <table class="qtable">
           <thead>
-            <tr><th>Question</th><th>Your Answer</th><th>Correct Answer</th><th>Status</th></tr>
+            <tr><th>Question</th><th>Your Answer</th><th>Correct Answer</th><th>Status</th><th>⭐</th><th>❗</th></tr>
           </thead>
           <tbody id="qtableBody"></tbody>
         </table>
@@ -177,6 +195,18 @@
     <div class="modal-box__actions">
       <button id="confirmCancelBtn" class="btn btn--ghost">Cancel</button>
       <button id="confirmSubmitBtn" class="btn btn--primary">Submit</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PAUSE CONFIRMATION MODAL ============ -->
+<div id="pauseConfirmModal" class="modal-overlay">
+  <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="pauseConfirmTitle">
+    <h2 id="pauseConfirmTitle" class="modal-box__title">Pause Test?</h2>
+    <p class="hint">The timer will stop until you resume it.</p>
+    <div class="modal-box__actions">
+      <button id="pauseCancelBtn" class="btn btn--ghost">Cancel</button>
+      <button id="pauseConfirmBtn" class="btn btn--primary">Pause Test</button>
     </div>
   </div>
 </div>
