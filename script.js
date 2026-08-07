@@ -24,6 +24,7 @@
   const state = {
     userAnswers: new Array(TOTAL_QUESTIONS + 1).fill(null),
     keyAnswers: new Array(TOTAL_QUESTIONS + 1).fill(null),
+    markers: { star: new Set(), review: new Set() }, // question markers, saved alongside answers
     missing: new Set(),
     marking: { correct: 4, wrong: -1, unattempted: 0 },
     results: null, // filled by checkAnswers()
@@ -33,8 +34,15 @@
       secondsLeft: TEST_DURATION_SECONDS,
       intervalId: null,
       running: false,
+      paused: false,
     },
   };
+
+  /* ---------------- Marker icons (outline SVG) ---------------- */
+  const STAR_ICON_SVG =
+    '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5l2.6 5.6 6.1.6-4.6 4.1 1.3 6-5.4-3.1-5.4 3.1 1.3-6-4.6-4.1 6.1-.6z"/></svg>';
+  const REVIEW_ICON_SVG =
+    '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.5 21 19.5H3z"/><line x1="12" y1="9" x2="12" y2="13.5"/><line x1="12" y1="16.2" x2="12" y2="16.3"/></svg>';
 
   /* ---------------- DOM refs ---------------- */
   const $ = (id) => document.getElementById(id);
@@ -44,6 +52,7 @@
   const attemptedCount = $("attemptedCount");
   const progressFill = $("progressFill");
   const timerDisplay = $("timerDisplay");
+  const timerDisplaySpentValue = $("timerDisplaySpentValue");
 
   const pdfInput = $("pdfInput");
   const fileNameLabel = $("fileNameLabel");
@@ -54,6 +63,11 @@
 
   const toastEl = $("toast");
   const confirmModal = $("confirmModal");
+
+  const pauseBtn = $("pauseBtn");
+  const resumeBtn = $("resumeBtn");
+  const pausedBadge = $("pausedBadge");
+  const pauseConfirmModal = $("pauseConfirmModal");
 
   /* =========================================================
      THEME
@@ -154,10 +168,51 @@
       });
 
       row.appendChild(opts);
+
+      // Star / review markers — question screen only (not the answer-key grid)
+      if (namePrefix === "q") {
+        row.appendChild(buildMarkerControls(q));
+      }
+
       frag.appendChild(row);
     }
     container.innerHTML = "";
     container.appendChild(frag);
+  }
+
+  function buildMarkerControls(q) {
+    const wrap = document.createElement("div");
+    wrap.className = "omr-row__markers";
+
+    const starBtn = document.createElement("button");
+    starBtn.type = "button";
+    starBtn.className = "marker-btn marker-btn--star";
+    starBtn.innerHTML = STAR_ICON_SVG;
+    starBtn.setAttribute("aria-label", `Star question ${q}`);
+    starBtn.title = "Star this question";
+    if (state.markers.star.has(q)) starBtn.classList.add("is-on");
+    starBtn.addEventListener("click", () => {
+      if (state.markers.star.has(q)) state.markers.star.delete(q);
+      else state.markers.star.add(q);
+      starBtn.classList.toggle("is-on");
+    });
+
+    const reviewBtn = document.createElement("button");
+    reviewBtn.type = "button";
+    reviewBtn.className = "marker-btn marker-btn--review";
+    reviewBtn.innerHTML = REVIEW_ICON_SVG;
+    reviewBtn.setAttribute("aria-label", `Mark question ${q} for review`);
+    reviewBtn.title = "Mark for review";
+    if (state.markers.review.has(q)) reviewBtn.classList.add("is-on");
+    reviewBtn.addEventListener("click", () => {
+      if (state.markers.review.has(q)) state.markers.review.delete(q);
+      else state.markers.review.add(q);
+      reviewBtn.classList.toggle("is-on");
+    });
+
+    wrap.appendChild(starBtn);
+    wrap.appendChild(reviewBtn);
+    return wrap;
   }
 
   function renderQuestionGrid() {
@@ -252,8 +307,15 @@
   function startTimer() {
     if (state.timer.running) return;
     state.timer.running = true;
+    state.timer.paused = false;
     updateTimerDisplay();
+    updateTimerControls();
+    runTicker();
+  }
+
+  function runTicker() {
     state.timer.intervalId = setInterval(() => {
+      // Auto-submit only ever fires while actively running (never while paused).
       state.timer.secondsLeft--;
       updateTimerDisplay();
       if (state.timer.secondsLeft <= 0) {
@@ -265,24 +327,77 @@
     }, 1000);
   }
 
-  function stopTimer() {
-    state.timer.running = false;
+  function pauseTimer() {
+    if (!state.timer.running || state.timer.paused) return;
     if (state.timer.intervalId) {
       clearInterval(state.timer.intervalId);
       state.timer.intervalId = null;
     }
+    state.timer.running = false;
+    state.timer.paused = true;
+    updateTimerDisplay();
+    updateTimerControls();
+  }
+
+  function resumeTimer() {
+    if (!state.timer.paused) return;
+    state.timer.paused = false;
+    state.timer.running = true;
+    updateTimerDisplay();
+    updateTimerControls();
+    runTicker();
+  }
+
+  // Stops the timer permanently (manual submit, auto-submit, or restart) — not the same as pausing.
+  function stopTimer() {
+    state.timer.running = false;
+    state.timer.paused = false;
+    if (state.timer.intervalId) {
+      clearInterval(state.timer.intervalId);
+      state.timer.intervalId = null;
+    }
+    updateTimerControls();
   }
 
   function updateTimerDisplay() {
     const total = Math.max(0, state.timer.secondsLeft);
-    const h = Math.floor(total / 3600);
-    const m = Math.floor((total % 3600) / 60);
-    const s = total % 60;
-    const pad = (n) => String(n).padStart(2, "0");
-    timerDisplay.textContent = `${pad(h)}:${pad(m)}:${pad(s)}`;
+    timerDisplay.textContent = formatDuration(total);
     timerDisplay.classList.toggle("is-running", state.timer.running);
     timerDisplay.classList.toggle("is-critical", state.timer.running && total <= 300);
+
+    const spent = Math.max(0, TEST_DURATION_SECONDS - total);
+    timerDisplaySpentValue.textContent = formatDuration(spent);
   }
+
+  function formatDuration(totalSeconds) {
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${pad(h)}:${pad(m)}:${pad(s)}`;
+  }
+
+  // Shows/hides the Pause/Resume buttons and the PAUSED badge based on timer state.
+  function updateTimerControls() {
+    const t = state.timer;
+    pauseBtn.hidden = !(t.running && !t.paused);
+    resumeBtn.hidden = !t.paused;
+    pausedBadge.hidden = !t.paused;
+  }
+
+  pauseBtn.addEventListener("click", () => {
+    pauseConfirmModal.classList.add("is-open");
+  });
+  $("pauseCancelBtn").addEventListener("click", () => {
+    pauseConfirmModal.classList.remove("is-open");
+  });
+  $("pauseConfirmBtn").addEventListener("click", () => {
+    pauseConfirmModal.classList.remove("is-open");
+    pauseTimer();
+  });
+  resumeBtn.addEventListener("click", () => {
+    resumeTimer();
+  });
 
   /* =========================================================
      PDF UPLOAD + TEXT EXTRACTION
@@ -427,7 +542,9 @@
     let correct = 0,
       wrong = 0,
       skipped = 0,
-      marks = 0;
+      marks = 0,
+      starredCount = 0,
+      reviewCount = 0;
 
     const subjectStats = SUBJECTS.map((s) => ({
       ...s,
@@ -435,6 +552,8 @@
       wrong: 0,
       skipped: 0,
       marks: 0,
+      starred: 0,
+      review: 0,
       total: s.to - s.from + 1,
     }));
 
@@ -457,12 +576,19 @@
         marks += state.marking.wrong;
       }
 
-      perQuestion.push({ q, userAns, correctAns, status });
+      const isStarred = state.markers.star.has(q);
+      const isReview = state.markers.review.has(q);
+      if (isStarred) starredCount++;
+      if (isReview) reviewCount++;
+
+      perQuestion.push({ q, userAns, correctAns, status, star: isStarred, review: isReview });
 
       const subj = subjectStats.find((s) => q >= s.from && q <= s.to);
       if (subj) {
         subj[status] += 1;
         subj.marks += status === "correct" ? state.marking.correct : status === "wrong" ? state.marking.wrong : state.marking.unattempted;
+        if (isStarred) subj.starred += 1;
+        if (isReview) subj.review += 1;
       }
     }
 
@@ -480,6 +606,8 @@
       marks,
       maxMarks,
       accuracy,
+      starredCount,
+      reviewCount,
       perQuestion,
       subjectStats,
     };
@@ -498,6 +626,8 @@
     $("sumMarks").textContent = `${round(r.marks)} / ${r.maxMarks}`;
     $("sumMaxMarks").textContent = r.maxMarks;
     $("sumAccuracy").textContent = r.accuracy.toFixed(2) + "%";
+    $("sumStarred").textContent = r.starredCount;
+    $("sumReview").textContent = r.reviewCount;
 
     renderSubjectCards(r.subjectStats);
     renderQuestionTable(r.perQuestion, state.currentFilter);
@@ -518,6 +648,8 @@
         <div class="subject-card__row"><span>Skipped</span><strong style="color:var(--skip)">${s.skipped}</strong></div>
         <div class="subject-card__row"><span>Marks</span><strong>${round(s.marks)} / ${s.maxMarks}</strong></div>
         <div class="subject-card__row"><span>Accuracy</span><strong>${acc.toFixed(2)}%</strong></div>
+        <div class="subject-card__row"><span>⭐ Starred</span><strong style="color:var(--star-on)">${s.starred}</strong></div>
+        <div class="subject-card__row"><span>❗ Review</span><strong style="color:var(--review-on)">${s.review}</strong></div>
       `;
       grid.appendChild(card);
     });
@@ -529,7 +661,13 @@
     const frag = document.createDocumentFragment();
 
     perQuestion.forEach((row) => {
-      if (filter !== "all" && row.status !== filter) return;
+      let show;
+      if (filter === "all") show = true;
+      else if (filter === "starred") show = row.star;
+      else if (filter === "review") show = row.review;
+      else show = row.status === filter;
+      if (!show) return;
+
       const tr = document.createElement("tr");
       tr.className = "row--" + row.status;
       tr.innerHTML = `
@@ -537,6 +675,8 @@
         <td>${row.userAns ?? "-"}</td>
         <td>${row.correctAns ?? "-"}</td>
         <td>${capitalize(row.status)}</td>
+        <td class="qtable__marker">${row.star ? "⭐" : "—"}</td>
+        <td class="qtable__marker">${row.review ? "❗" : "—"}</td>
       `;
       frag.appendChild(tr);
     });
@@ -569,6 +709,7 @@
     updateTimerDisplay();
     state.userAnswers.fill(null);
     state.keyAnswers.fill(null);
+    state.markers = { star: new Set(), review: new Set() };
     state.missing = new Set();
     state.results = null;
     state.unlocked = new Set(["home"]);
@@ -604,5 +745,6 @@
   /* ---------------- INIT ---------------- */
   $("homeMaxMarks").textContent = TOTAL_QUESTIONS * state.marking.correct;
   updateTimerDisplay();
+  updateTimerControls();
   renderQuestionGrid();
 })();
